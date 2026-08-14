@@ -1445,6 +1445,8 @@ The only `UIComponentAPI` instance available through the API is the `CustomPanel
 <summary>Code snippet</summary>
 
 ```java
+import rolflectionlib.util.RolfLectionUtil;
+
 public abstract class CustomPanel implements CustomUIPanelPlugin {
     private static final Object clearChildrenMethod;
     private static final Object getChildrenCopyMethod;
@@ -1611,3 +1613,123 @@ This wrapper, which ought to get extended by all other UI elements, is minimal, 
 - **Reflection** - Common reflection calls are cached and made available with static and instance methods.
 
 The vanilla API has a few omissions. Essential methods like `clearChildren`, `getChildrenCopy`, `getChildrenNonCopy`, and `getFader` are not exposed through `UIPanelAPI`. For these, reflection is currently required. As of the next Starsector release, several of these reflection-required methods will be available through the API. Once that happens, the reflection utilities in this pattern ought to be replaced with direct API calls. The wrapper pattern remains the cleanest way to manage complex custom panels while keeping reflection isolated in a single, well-tested place.
+
+<br><br>
+
+## **The Debug Panel**
+
+The first panel to be created will draw a green, transparent quad that covers its dimensions. Additionally, it will have a `LabelAPI` with simple text.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.util.List;
+import java.awt.Color;
+
+import org.lwjgl.opengl.GL11;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.ui.Fonts;
+import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.PositionAPI;
+
+public class DebugPanel extends CustomPanel {
+    
+    public DebugPanel() {
+        /** The panel will have a width of 100 and height of 100. */
+        super(100f, 100f);
+
+        final LabelAPI title = Global.getSettings().createLabel("Debug Panel", Fonts.INSIGNIA_LARGE);
+
+        /** Will be added to the top left corner of the panel with a vertical and horizontal gap of 5 pixels. */
+        add(title).inTL(5f, 5f);
+    }
+
+    @Override
+    public void renderBelow(float alpha) {
+        /** Uses the convenience method provided by CustomPanel. */
+        final PositionAPI pos = pos();
+        final float x = pos.getX();
+        final float y = pos.getY();
+        final float w = pos.getWidth();
+        final float h = pos.getHeight();
+
+        final Color green = new Color(0f, 1f, 0f, alpha * 0.3f);
+
+        /** Standard quad draw using immediate mode. */
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        GL11.glColor4f(green.getRed() / 255f,
+            green.getGreen() / 255f,
+            green.getBlue() / 255f,
+            green.getAlpha() / 255f);
+
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x + w, y);
+        GL11.glVertex2f(x + w, y + h);
+        GL11.glVertex2f(x, y + h);
+        GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_BLEND);
+    }
+
+    /** These methods are not needed for this example, but must be implemented to satisfy the interface. */
+    public void render(float alpha) {}
+    public void advance(float delta) {}
+    public void processInput(List<InputEventAPI> events) {}
+}
+```
+</details>
+
+The `renderImpl` method of `CustomPanelAPI` will call the plugin method `renderBelow` before calling the render method of its children, and thus the quad will be rendered before i.e. below the children.
+
+Now this debug panel needs to be attached somewhere. There are context-dependent panels that the API provides as a potencial parent (for the UI injection), but we want the panel to be displayed above everything else inside `TitleScreenState`, therefore we will call this method using a `BaseEveryFrameCombatPlugin`, which runs when the `CombatEngine` is used, which is the case when `TitleScreenState` is active, as the ships in the background are controlled using it. If a panel needs to be injected multiple times, i.e. the parent panel clears its children, then the `advance` method is more fit to inject the button, as it can constantly check for the presence of the injected panel, and inject it if missing.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import com.fs.starfarer.api.GameState;
+import com.fs.starfarer.api.Global;
+
+import com.fs.starfarer.api.combat.BaseEveryFrameCombatPlugin;
+import com.fs.starfarer.api.combat.CombatEngineAPI;
+import com.fs.starfarer.api.ui.UIPanelAPI;
+import com.fs.starfarer.title.TitleScreenState;
+import com.fs.state.AppDriver;
+
+import rolflectionlib.util.RolfLectionUtil;
+
+public class TitleDebugScreenPlugin extends BaseEveryFrameCombatPlugin {
+
+    public void init(CombatEngineAPI engine) {
+        /** Only works when the game state is TITLE. */
+        if (Global.getSettings().getCurrentState() != GameState.TITLE) return;
+
+        /** The getScreenPanel uses the obfuscated UIPanel type, and thus must be called using reflection. */
+        final Object getTitleScreenPanelMethod = RolfLectionUtil.getMethod(
+            "getScreenPanel", TitleScreenState.class
+        );
+
+        final AppState title = AppDriver.getInstance().getCurrentState();
+        final UIPanelAPI screen = (UIPanelAPI) RolfLectionUtil.invokeMethodDirectly(getTitleScreenPanelMethod, title);
+        
+        final DebugPanel debug = new DebugPanel();
+
+        /** The getPanel call is needed, since DebugPanel is the wrapper around the actual panel, and the plugin of that panel. */
+        screen.addComponent(debug.getPanel()).inTL(50f, 50f);
+    }
+}
+```
+</details>
+
+The plugin to inject the debug panel can be registered at `settings.json`. To do this, create a `settings.json` at `data/config/settings.json` and inside it, place the following block:
+```json
+"plugins": {
+    "TitleDebug": "path.to.plugin.TitleDebugScreenPlugin"
+}
+```
