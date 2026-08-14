@@ -792,7 +792,7 @@ private void updateSiblings() {
 
 The best way to, and if you are not crazy like LazyWizard, the only way to display text in Starsector is using `LabelAPI`. Used by the game everywhere, even the tooltip uses it to render `String`s. LabelAPI is technically a core component, as it implements `InternalUIComponentAPI` from scratch. Therefore, it cannot have children. I will not pretend to understand how `LabelAPI` renders text, and as such, only its usage will be covered.
 
-The most significant aspect of `LabelAPI` is how it handles fonts. Once the font is specified inside the constructor, it is final and cannot be changed. A new `Label` must be created instead. Secondly, while `Label` does not support direct rendering with specified coordinates, its PositionAPI can nevertheless be used to render it without a parent. To do this, the `PositionAPI` of the label is retrieved, added to the screen panel as a child (only the position) and its xAlignOffset and yAlignOffset are set to the desired coordinates using `setXAlignOffset` and `setYAlignOffset`. The order is significant, and the `PositionAPI` of the label must have a parent or an anchor, otherwise its position won't be recomputed (see section `PositionAPI`). After this setup, the `render` method of `LabelAPI` can simply be called.
+The most significant aspect of `LabelAPI` is how it handles fonts. Once the font is specified inside the constructor, it is final and cannot be changed. A new `Label` must be created instead. Secondly, while `Label` does not support direct rendering with specified coordinates, its PositionAPI can nevertheless be used to render it without a parent. To do this, the `PositionAPI` of the label is retrieved, added to the screen panel as a child (only the position) and its xAlignOffset and yAlignOffset are set to the desired coordinates using `setXAlignOffset` and `setYAlignOffset`. The order is significant, and the `PositionAPI` of the label must have a parent or an anchor, otherwise its position won't be recomputed (see section [`PositionAPI`](#positionapi)). After this setup, the `render` method of `LabelAPI` can simply be called.
 
 When first creating a `LabelAPI` instance through the `SettingsAPI` method `createLabel`, the initial width of the label is determined by the first parameter, which constitutes the initial text, and the second parameter, which is the font. The width and height of the `Label` can be adjusted directly through its `PositionAPI`. In general, the render method divides the String characters and renders them in separate lines to ensure their total width do not exceed that of its `PositionAPI`. This system breaks down for extremely thin labels, where the width of the label is less than a character.
 
@@ -1103,10 +1103,10 @@ The best way, and as far as I am aware, the only way, to use `TooltipMakerAPI` a
 
 The tooltip does not place its content inside itself, which it could, because it extends `UIPanel`, but has a separate content panel. Therefore, the children interaction methods from `UIPanelAPI` such as `addComponent` or `removeComponent` should not be used when working with `TooltipMakerAPI`. There is no API side access to the content panel, however, `StandardTooltipV2Expandable` has a getter for the content panel not present on `TooltipMakerAPI`, which can be called using reflection. The method signature is `UIPanel getPanel()`. Note the replacement of the obfuscated type with `UIPanel`, hence the need for reflection.
 
-Should the tooltip have a scrollbar, it will be placed inside a `ScrollPanel` (see section `CustomPanelAPI`), which can be retrieved through `TooltipMakerAPI` using `getExternalScroller`. The stored external scroller instance can also be changed using `setExternalScroller`, but it doesn't actually change the scroll panel the tooltip is attached to.
+Should the tooltip have a scrollbar, it will be placed inside a `ScrollPanel` (see section [`CustomPanelAPI`](#custompanelapi)), which can be retrieved through `TooltipMakerAPI` using `getExternalScroller`. The stored external scroller instance can also be changed using `setExternalScroller`, but it doesn't actually change the scroll panel the tooltip is attached to.
 
 ### **Managing the tooltip**
-The traditional tooltip, which gets managed by the `UIComponent` it gets attached to (see section `UIComponentAPI`), cannot be directly instanced through `TooltipMakerAPI`. And creating one by subclassing `StandardTooltipV2Expandable` is not worth the extra hassle, unless some extra setup methods only available through `StandardTooltipV2Expandable` are called. Instead, the better way to define a tooltip is done using the `TooltipCreator` interface, and can be positioned using the TooltipLocation enum. It's background color can also be changed using `setBgAlpha`.
+The traditional tooltip, which gets managed by the `UIComponent` it gets attached to (see section [`UIComponentAPI`](#uicomponentapi)), cannot be directly instanced through `TooltipMakerAPI`. And creating one by subclassing `StandardTooltipV2Expandable` is not worth the extra hassle, unless some extra setup methods only available through `StandardTooltipV2Expandable` are called. Instead, the better way to define a tooltip is done using the `TooltipCreator` interface, and can be positioned using the TooltipLocation enum. It's background color can also be changed using `setBgAlpha`.
 ```java
 public interface TooltipCreator {
     boolean isTooltipExpandable(Object tooltipParam);
@@ -1272,7 +1272,7 @@ LabelAPI addSectionHeading(String str, Color textColor, Color bgColor, Alignment
 LabelAPI addSectionHeading(String str, Color textColor, Color bgColor, Alignment align, float width, float pad);
 ```
 
-One of the most useful UI elements without debate is the button. There is a button factory class in the Starsector API, however, it is obfuscated. Thus, one of the best ways to create a button is through `TooltipMakerAPI`, even though the button has nothing to do with the `TooltipMakerAPI` instance it was created from. For more details on how buttons work, see section `ButtonAPI`.
+One of the most useful UI elements without debate is the button. There is a button factory class in the Starsector API, however, it is obfuscated. Thus, one of the best ways to create a button is through `TooltipMakerAPI`, even though the button has nothing to do with the `TooltipMakerAPI` instance it was created from. For more details on how buttons work, see section [`ButtonAPI`](#buttonapi).
 ```java
 ButtonAPI addButton(String text, Object data, float width, float height, float pad);
 ButtonAPI addButton(String text, Object data, Color base, Color bg, float width, float height, float pad);
@@ -1308,7 +1308,7 @@ void setAreaCheckboxFontDefault();
 When the button is clicked, a listener gets called (if provided), so that the logic of the button can be modified without subclassing the button. The source is the `ButtonAPI` itself, and the data is the custom data stored by the button (if any).
 ```java
 public static interface ActionListenerDelegate {
-        void actionPerformed(Object data, Object source);
+    void actionPerformed(Object data, Object source);
 }
 
 /**
@@ -1439,7 +1439,7 @@ The following sections are planned for future updates to this resource. They are
 
 ## **The Building Block**
 
-The only `UIComponentAPI` instance available through the API is the `CustomPanelAPI`, through `Global.getSettings().createCustom()`. Thus, any custom UI element must use it as its basis. The traversal methods of `CustomPanelAPI` additionally call the same methods of the plugin it is provided with (see section `CustomPanelAPI`). Thus, as it turns out, the most convenient way to manage both the plugin, where the logic lives, and the custom panel, where the UI hierarchy lives, is by letting the plugin own the custom panel, and let the plugin have methods that delegate the calls to the encapsulated custom panel instance. This makes the creation of more complex UI elements, be it reusable or particular, easier, as simply extending the wrapper plugin is enough to benefit from all the features of `CustomPanelAPI` without a hassle. Here is one such wrapper panel I use for my mods.
+The only `UIComponentAPI` instance available through the API is the `CustomPanelAPI`, through `Global.getSettings().createCustom()`. Thus, any custom UI element must use it as its basis. The traversal methods of `CustomPanelAPI` additionally call the same methods of the plugin it is provided with (see section [`CustomPanelAPI`](#custompanelapi)). Thus, as it turns out, the most convenient way to manage both the plugin, where the logic lives, and the custom panel, where the UI hierarchy lives, is by letting the plugin own the custom panel, and let the plugin have methods that delegate the calls to the encapsulated custom panel instance. This makes the creation of more complex UI elements, be it reusable or particular, easier, as simply extending the wrapper plugin is enough to benefit from all the features of `CustomPanelAPI` without a hassle. Here is one such wrapper panel I use for my mods.
 
 <details>
 <summary>Code snippet</summary>
@@ -1685,7 +1685,7 @@ public class DebugPanel extends CustomPanel {
 ```
 </details>
 
-The `renderImpl` method of `CustomPanelAPI` will call the plugin method `renderBelow` before calling the render method of its children, and thus the quad will be rendered before i.e. below the children.
+The `renderImpl` method of `CustomPanelAPI` will call the plugin method `renderBelow` before calling the render method of its children, and thus the quad will be drawn before i.e. below the children.
 
 Now this debug panel needs to be attached somewhere. There are context-dependent panels that the API provides as a potencial parent (for the UI injection), but we want the panel to be displayed above everything else inside `TitleScreenState`, therefore we will call this method using a `BaseEveryFrameCombatPlugin`, which runs when the `CombatEngine` is used, which is the case when `TitleScreenState` is active, as the ships in the background are controlled using it. If a panel needs to be injected multiple times, i.e. the parent panel clears its children, then the `advance` method is more fit to inject the button, as it can constantly check for the presence of the injected panel, and inject it if missing.
 
@@ -1733,3 +1733,288 @@ The plugin to inject the debug panel can be registered at `settings.json`. To do
     "TitleDebug": "path.to.plugin.TitleDebugScreenPlugin"
 }
 ```
+
+<br><br>
+
+## **The Count Panel**
+
+Now for a more involved panel (technically panel wrapper/plugin), where an internal count field is incremented when a button, which is created using a tooltip, is clicked. This updates the text of a label. To react to button clicks, an `ActionListenerDelegate` is used, which gets called by the button internally, who uses `processInputImpl` internally to check for click events (see section [ButtonAPI](#buttonapi)). When the label text is updated, its width is also updated to match the new text width, otherwise the text might wrap around to the next line.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.util.List;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.ui.Alignment;
+import com.fs.starfarer.api.ui.ButtonAPI;
+import com.fs.starfarer.api.ui.CutStyle;
+import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
+import com.fs.starfarer.api.util.Misc;
+
+public class CountPanel extends CustomPanel {
+    /** Unique Id object */
+    private static final Object COUNT_BTN = new Object();
+
+    private int count = 0;
+    
+    public CountPanel() {
+        super(200f, 80f);
+
+        /** Internally calls mPanel.createUIElement(width, height, withScroller); */
+        final TooltipMakerAPI content = getTooltip(200f, 80f, false);
+
+        content.addTitle("Counter", Misc.getBasePlayerColor());
+
+        final LabelAPI counterLabel = content.addPara(getCountStr(), 5f);
+
+        content.setButtonFontOrbitron20();
+        content.setActionListenerDelegate(new ActionListenerDelegate() {
+            @Override
+            public void actionPerformed(Object data, Object src) {
+
+                /** Used to identify which button was clicked. Useful for multiple buttons that share the same listener. */
+                if (src instanceof ButtonAPI btn && btn.getCustomData() == COUNT_BTN) {
+                    count++;
+                    final String txt = getCountStr();
+                    counterLabel.setText(txt);
+                    /** If the width of the new text is higher, the text will be wrapped around to the next line. So resize. */
+                    counterLabel.autoSizeToWidth(counterLabel.computeTextWidth(txt));
+                }
+            }
+        });
+
+        /** The second param is the custom data. */
+        content.addButton("Increment", COUNT_BTN, Misc.getButtonTextColor(), Global.getSettings().getColor("buttonBgDark"),
+            Alignment.MID, CutStyle.ALL, 70f, 28f, 10f);
+
+        /** The addButton method adds the Button to the tooltip using addCustom already. */
+        add(content);
+    }
+
+    private final String getCountStr() {
+        return "Clicks: " + Integer.toString(count);
+    }
+
+    @Override public void renderBelow(float alpha) {}
+    @Override public void render(float alpha) {}
+    @Override public void processInput(List<InputEventAPI> events) {}
+    @Override public void advance(float delta) {}
+}
+```
+</details>
+
+<br><br>
+
+## **The Data List**
+
+A very common pattern in **GUI**s are lists, in particular, scrollable ones. The `ScrollPanelAPI` implementation is obfuscated, and the interface itself is quite limited (but Alex did promise to make the API complete and add a factory method, so there is hope). Therefore the scroll panel of the tooltip will be used to hold the rows of the list. The rows will hold a faction crest and its name. Clicking any will call back a consumer, which is basically a listener without explicitly using `ActionListenerDelegate`. It could be used, but not needed in this example, so eh. The row positioning is tracked manually (out of habit) to make sure the rows are placed correctly. Notice the usage of static constants wherever fitting, which is a good habit, because it makes manual layouting (which you will need to do outside of the tooltip) much more readable. Instead of calculating the layout using number literals, the math is done using named constants, which improves readability without any runtime cost.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionSpecAPI;
+import com.fs.starfarer.api.graphics.SpriteAPI;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.ui.Fonts;
+import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI;
+
+public class FactionList extends CustomPanel {
+    private static final float ROW_HEIGHT = 32f;
+    private final Consumer<FactionSpecAPI> onFactionSelected;
+
+    public FactionList(float width, float height, Consumer<FactionSpecAPI> onFactionSelected) {
+        super(width, height);
+        this.onFactionSelected = onFactionSelected;
+        buildUI();
+    }
+
+    /** The separate method allows the UI to be rebuilt without creating a new FactionList panel. */
+    public void buildUI() {
+        clearChildren();
+
+        final List<FactionSpecAPI> factions = new ArrayList<>();
+        for (FactionSpecAPI faction : Global.getSettings().getAllFactionSpecs()) {
+            if (faction.isShowInIntelTab()) {
+                factions.add(faction);
+            }
+        }
+
+        /** Create a scrollable tooltip as the content container */
+        final TooltipMakerAPI container = getTooltip(pos().getWidth(), pos().getHeight(), true);
+
+        float yCoord = 0f;
+        for (FactionSpecAPI faction : factions) {
+            final FactionRow row = new FactionRow(
+                pos().getWidth(), ROW_HEIGHT,
+                faction, onFactionSelected
+            );
+            /** Manually positioned instead of trusting the relative positioning of addCustom. */
+            container.addCustom(row.getPanel(), 0f).getPosition().inTL(0f, yCoord);
+            yCoord += ROW_HEIGHT + 5f;
+        }
+
+        /** Needed, since the manual positioning can mess with the height tracking of the tooltip. */
+        container.setHeightSoFar(yCoord);
+        add(container);
+    }
+
+    @Override public void renderBelow(float alpha) {}
+    @Override public void render(float alpha) {}
+    @Override public void advance(float delta) {}
+    @Override public void processInput(List<InputEventAPI> events) {}
+
+    private static class FactionRow extends CustomPanel {
+        private final FactionSpecAPI faction;
+        private final Consumer<FactionSpecAPI> onSelect;
+        private final SpriteAPI crest;
+        private final int ICON_S = 28;
+
+        public FactionRow(float width, float height, FactionSpecAPI faction, Consumer<FactionSpecAPI> onSelect) {
+            super(width, height);
+            this.faction = faction;
+            this.onSelect = onSelect;
+            /** This is fine, the underlying id map can handle null keys, should the faction crest be null for some reason. */
+            this.crest = Global.getSettings().getSprite(faction.getCrest());
+            if (crest != null) crest.setSize(ICON_S, ICON_S);
+
+            final LabelAPI nameLabel = Global.getSettings().createLabel(
+                faction.getDisplayName(),
+                Fonts.ORBITRON_12
+            );
+            nameLabel.setColor(faction.getBaseUIColor());
+            add(nameLabel).inLMid(ICON_S + 8f);
+        }
+
+        @Override
+        public void processInput(List<InputEventAPI> events) {
+            for (InputEventAPI event : events) {
+                if (event.isConsumed()) continue;
+
+                if (event.isLMBEvent() && pos().containsEvent(event)) {
+                    event.consume();
+                    onSelect.accept(faction);
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public void render(float alpha) {
+            if (crest != null) {
+                /** Basically vertical mid. */
+                final float y = (pos().getHeight() - ICON_S) / 2f;
+                /** Should not touch the left border, or might look ugly. */
+                crest.render(3f, y);
+            }
+        }
+
+        @Override public void renderBelow(float alpha) {}
+        @Override public void advance(float delta) {}
+    }
+}
+```
+</details>
+
+<br><br>
+
+## **The Detail Panel**
+
+Another common pattern in building UI is creating an element that builds UI for a specific instance of data. Rows that display the details of a faction are one example (see section [The Data List](#the-data-list)). But another one is a detail panel, that gets updated when the user selects from a list of data. Continuing from the last example, where a `FactionSpecAPI` is selected from a list, this selection then invokes a consumer. This consumer can be used to build a detail panel, which displays more information in the context of that faction. For simplicity, the example below displays the name, logo, and the first description paragraph of the faction, similar to the **factions** tab inside the **Intel** tab. The panel implements `Consumer<FactionSpecAPI>`, and is passed to `FactionList` as its consumer.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.util.List;
+import java.util.function.Consumer;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionSpecAPI;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.loading.Description;
+import com.fs.starfarer.api.loading.Description.Type;
+import com.fs.starfarer.api.ui.Alignment;
+import com.fs.starfarer.api.ui.Fonts;
+import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI;
+
+public class FactionDetailPanel extends CustomPanel implements Consumer<FactionSpecAPI> {
+    private FactionSpecAPI currentFaction;
+
+    public FactionDetailPanel(float width, float height) {
+        super(width, height);
+
+        showDefaultState();
+    }
+
+    private void showDefaultState() {
+        clearChildren();
+
+        /** Please avoid using the tooltip for a singular label. The tool is overqualified for the job. */
+        final LabelAPI defaultLbl = Global.getSettings().createLabel("Select a faction from the list.", Fonts.DEFAULT_SMALL);
+        /** Should stand in the middle. */
+        add(defaultLbl).inMid();
+    }
+
+    @Override
+    public void accept(FactionSpecAPI faction) {
+        currentFaction = faction;
+        buildUI();
+    }
+
+    private void buildUI() {
+        clearChildren();
+        if (currentFaction == null) {
+            showDefaultState();
+            return;
+        }
+
+        /** Vanilla uses these values quite often. I also do for visual consistency. */
+        final float pad = 3f;
+        final float opad = 10f;
+
+        final float width = pos().getWidth();
+        final float height = pos().getHeight();
+
+        /** It is sort of justified here, because it provides a sprite wrapper using addImage. */
+        final TooltipMakerAPI content = getTooltip(width, height, false);
+
+        final String logoId = currentFaction.getLogo();
+        if (logoId != null) {
+            /** The logo is usually 410*256 px, so scale the width/height by that. */
+            content.addImage(logoId, 200f, 125f, pad);
+        }
+
+        /** Do not use addTitle, as that would place the title at the top left, which is where the logo sits. */
+        final LabelAPI nameLabel = content.addPara(currentFaction.getDisplayName(), currentFaction.getBaseUIColor(), pad);
+        /** Remember that the width of the label is the width of the tooltip, so centering it at the middle works. */
+        nameLabel.setAlignment(Alignment.MID);
+        /** A section heading could have also been used. Personal taste. */
+
+        /** Let me be honest, I have no idea if this is the correct way to retrieve the faction desc, but this is a GUI guide, so don't care. */
+        final Description desc = Global.getSettings().getDescription(currentFaction.getId(), Type.FACTION);
+        content.addPara(desc.getText1(), opad);
+
+        /** Default is inBL(0f, 0f), which is fine, because the tooltip covers the entire panel. */
+        add(content);
+    }
+
+    @Override public void renderBelow(float alpha) {}
+    @Override public void render(float alpha) {}
+    @Override public void advance(float delta) {}
+    @Override public void processInput(List<InputEventAPI> events) {}
+}
+```
+</details>
