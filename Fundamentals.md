@@ -1,4 +1,4 @@
-# **The Fundamentals of User Interfaces - 0.98a**
+# **The Fundamentals of Graphical User Interfaces - 0.98a**
 
 The goal of this resource is to teach the **Graphical User Interface** system implemented by Starsector and how to work with it. This resource does not cover UI design in general or how to achieve a good UX.
 
@@ -62,7 +62,7 @@ Each `AppState`, with the exception of `GLLauncher`, also has a `codexOverlay` p
 Unlike branch panels or leaf panels inside the UI Tree/Hierarchy, the root panel is special. It does not have a `Position` parent, thus its rendering must be absolute, despite `Position` being designed for relative positioning. It does not have a parent to dictate its traversal order, thus the `AppState` must manage the lifecycle manually. Let us see how each `AppState` manages the lifecycle of their `screenPanel`.
 
 ### **TitleScreenState Root Panel**
-When the GUI of `TitleScreenState` is created, `screenPanel` is positioned at <0, 0> with the dimensions <screen_width, screen_height>. Then two panels, `titleWidget` and `missionWidget` are added to it (as a child).
+When the **GUI** of `TitleScreenState` is created, `screenPanel` is positioned at <0, 0> with the dimensions <screen_width, screen_height>. Then two panels, `titleWidget` and `missionWidget` are added to it (as a child).
 <details>
 <summary>Code snippet</summary>
 
@@ -109,7 +109,7 @@ screenPanel.bringToTop(belowTooltips);
 The traversal order for `CampaignState` is inherited from `BaseGameState`. The render alpha value is also 1.
 
 ### **CombatState Root Panel**
-When the GUI of `CombatState` is created, `screenPanel` is positioned at <0, 0> with the dimensions <screen_width, screen_height>. The panels `ribbon` and `shipInfo` are added to it.
+When the **GUI** of `CombatState` is created, `screenPanel` is positioned at <0, 0> with the dimensions <screen_width, screen_height>. The panels `ribbon` and `shipInfo` are added to it.
 <details>
 <summary>Code snippet</summary>
 
@@ -133,7 +133,7 @@ The `traverse` implementation of `CombatState` differ from BaseGameState, mainly
 
 ## **UIComponentAPI**
 
-Having covered the lifecycle of the `screenPanel` for all `AppState`'s, the next piece of the puzzle in understanding how the GUI works is to learn how the most elemental building block of the UI Tree works. `UIComponent` in Starsector is bit of a bundle, as it handles many features that it, in my opinion, should not handle at all. Not every aspect of `UIComponent` will be covered, as there are too many. Before we begin, here is a member list of `UIComponent`, renamed for human readability and semantic correctness alongside comments by me.
+Having covered the lifecycle of the `screenPanel` for all `AppState`'s, the next piece of the puzzle in understanding how the **GUI** works is to learn how the most elemental building block of the UI Tree works. `UIComponent` in Starsector is bit of a bundle, as it handles many features that it, in my opinion, should not handle at all. Not every aspect of `UIComponent` will be covered, as there are too many. Before we begin, here is a member list of `UIComponent`, renamed for human readability and semantic correctness alongside comments by me.
 
 <details>
 <summary>Code snippet</summary>
@@ -188,9 +188,9 @@ private OO0o mTooltipAnchor = null;
 /** If present, its tooltip reset logic will be used instead of mTooltipLogic's tooltip reset logic. */
 private classsuper mTooltipLogicResetDelegate = null;
 /** 
-    * If passed down to showTooltip() as a parameter, the method skips calling beforeShown() on the tooltip, does not fade the tooltip in and does not
-    * detach the tooltip should the parent of UIComponent be a scroll panel and currently being scrolled (tooltips disappear in vanilla when scrolling).
-    */
+* If passed down to showTooltip() as a parameter, the method skips calling beforeShown() on the tooltip, does not fade the tooltip in and does not
+* detach the tooltip should the parent of UIComponent be a scroll panel and currently being scrolled (tooltips disappear in vanilla when scrolling).
+*/
 public static java.lang.Object SOURCE_UPDATE_POSITION_ONLY = new java.lang.Object();
 /** What it says on the tin. */
 private boolean mForceTooltipToLowerRightOfMouse = false;
@@ -230,9 +230,9 @@ public void processInput(List<InputEventAPI> list) {
     boolean isActive = true;
     boolean showTpWhenInactive = false;
     if (this instanceof Button) {
-        n n2 = (n)this;
-        isActive = n2.isActive();
-        showTpWhenInactive = n2.isShowTooltipWhileInactive();
+        Button btn = (Button)this;
+        isActive = btn.isActive();
+        showTpWhenInactive = btn.isShowTooltipWhileInactive();
     }
     if ((isActive || showTpWhenInactive) && mTooltip != null && mTooltipLogic != O0Oo.\u00d300000() && mTooltipLogic != null) {
         mTooltipLogic.processInput(list);
@@ -408,12 +408,12 @@ public void sendToBottom(UIComponentAPI comp) {
     
     boolean bl = !children.isEmpty() && children.get(0) == comp;
     if (!bl) {
-        remove((OO0o)comp);
+        remove(comp);
         needToCopy = true;
-        children.add(0, (OO0o)comp);
-        ((InternalUIComponentAPI)comp).getPosition().setParent(getPosition());
+        children.add(0, comp);
+        comp.getPosition().setParent(getPosition());
         getPosition().add(0, comp.getPosition());
-        ((InternalUIComponentAPI) comp).setParent(this);
+        comp.setParent(this);
     }
     if (getParent() != null) {
         getParent().sendToBottom(this);
@@ -434,11 +434,11 @@ protected void renderImpl(float alpha) {
     
     updateCopyIfNeeded();
     if (isClipping()) {
-        Position object = getPosition();
-        float x = object.getX();
-        float y = object.getY();
-        float w = object.getWidth();
-        float h = object.getHeight();
+        Position pos = getPosition();
+        float x = pos.getX();
+        float y = pos.getY();
+        float w = pos.getWidth();
+        float h = pos.getHeight();
         ScissorStack.push((int)x, (int)y, (int)w, (int)h);
     }
     for (InternalUIComponentAPI child : copy) {
@@ -621,7 +621,7 @@ public UIPanelAPI wrapTooltipWithBox(TooltipMakerAPI tooltipMakerAPI, float padL
             float y = pos.getY();
             float w = pos.getWidth();
             float h = pos.getHeight();
-            /** quad draw call */
+            /** Obfuscated quad draw call. */
             public.o00000(x, y, w, h, 1f, color, alpha);
             super.renderImpl(alpha);
         }
@@ -639,7 +639,7 @@ To get a `CustomPanelAPI` instance through the API, the `SettingsAPI` method `cr
 
 ## **PositionAPI**
 
-Complex layouts are made simpler by giving each UI component a position relative to a parent. The component would then base their positioning on their parent's position. The **Transform Hierarchy** is the thing that lets us create nested ui components to begin with. Could designing a scrollable panel be imaginable without relative positioning? Certainly not. In game UI, each element has a **Transform**, which dictates the position, the scale and the rotation of a ui element. Further, each Transform can have a parent transform for relative transformation or a child transforms to be a parent itself. The **GUI** as implemented by Starsector does not have native support for scale and rotation in its **Transform**, and therefore it is called a `Position`. To scale or rotate children, the **openGL** calls `GL11.glRotated` and `GL11.glScaled` can be called before rendering children. Don't forget to `GL11.glPushMatrix()` before rendering and `GL11.glPopMatrix()` after rendering to keep the transformations local to the component and its children. I digress, **Position Hierarchy** is implemented separately from the **UIPanel Hierarchy** in Starsector. One UI Tree for the panels, and one for their `Position`s. This allows adding only the position of a component to a parent so that it is positioned relative to the parent but manages its traverse methods independently.
+Complex layouts are made simpler by giving each UI component a position relative to a parent. The component would then base their positioning on their parent's position. The **Transform Hierarchy** is the thing that lets us create nested ui components to begin with. Could designing a scrollable panel be imaginable without relative positioning? Certainly not. In game UI, each element has a **Transform**, which dictates the position, the scale and the rotation of a ui element. Further, each Transform can have a parent transform for relative transformation or have child transforms to be a parent itself. The **GUI** as implemented by Starsector does not have native support for scale and rotation in its **Transform**, and therefore it is called a `Position`. To scale or rotate children, the **openGL** calls `GL11.glRotated` and `GL11.glScaled` can be called before rendering children. Don't forget to `GL11.glPushMatrix()` before rendering and `GL11.glPopMatrix()` after rendering to keep the transformations local to the component and its children. I digress, **Position Hierarchy** is implemented separately from the **UIPanel Hierarchy** in Starsector. One UI Tree for the panels, and one for their `Position`s. This allows adding only the position of a component to a parent so that it is positioned relative to the parent but manages its traverse methods independently.
 
 `Position` uses relative positioning. As such, it has no `setX` or `setY` methods. Instead, it has relative alignment parameters that describe its transformation relative to its parent. These alignment parameters, together with the calculated coordinates of its parent, allows the `Position` to calculate its own coordinates, which can be retrieved using `getX` and `getY`. Starsector uses the **openGL** convention when it comes to screen space, where the bottom left corner of the screen is <0, 0> and the top right is <1, 1>. The `getX` and `getY` methods return coordinates according to this convention. Further, the origin of the `Position` is its bottom-left corner as well. Therefore when drawing a quad, the bottom left corner would be `(x, y)`, bottom right would be `(x + w, y)`, top right would be `(x + w, y + h)` and top left would be `(x, y + h)`.
 
@@ -713,7 +713,8 @@ mPosY = base.mPosY + mBaseAnchorY * base.mHeight + mHeight * mSelfAlignY + mAlig
 
 Every positioning shortcut like `inTL(x, y)`, `inMid()`, `aboveLeft(anchor, gap)`, etc., simply calls the method:
 ```java
-relativeTo(anchor, baseAnchorX, baseAnchorY, selfAlignX, selfAlignY, AlignOffsetX, AlignOffsetY) /** setting target as null uses parent */
+/** Setting anchor as null uses parent. */
+relativeTo(anchor, baseAnchorX, baseAnchorY, selfAlignX, selfAlignY, AlignOffsetX, AlignOffsetY)
 ```
 
 Examples
@@ -802,7 +803,7 @@ The color used to render the text is by default `Global.getSettings().getColor("
 
 The convenience method `autoSizeToWidth` uses the provided width and the cumulative height of the lines resulting from it to calculate the minimum height of the `LabelAPI` and apply it. Useful when stacking lots of `LabelAPI`'s so that they look like a continuous text of paragraphs. Which is exactly what `TooltipMakerAPI` does. The `computeTextWidth` and `computeTextHeight` methods can be treated as static methods, except they utilize the font of the `LabelAPI` the method is called from.
 
-Should `highlightOnMouseover` be true when a `LabelAPI` is hovered, which can be toggled using `setHighlightOnMouseover`, the glow fader's state will be set to IN, which is separate from the **flash** fader, which can be used to make a `LabelAPI` glow using code.
+Should `highlightOnMouseover` be true when a `LabelAPI` is hovered, which can be toggled using `setHighlightOnMouseover`, the glow fader's state will be set to `IN`, which is separate from the **flash** fader, which can be used to make a `LabelAPI` glow using code.
 
 A list of fonts `LabelAPI` accepts can be found under `com.fs.starfarer.api.ui.Fonts`, but there are other fonts not present here too. Should a custom font be used, it must first be loaded using the `SettingsAPI` method `loadFont`.
 
@@ -1163,7 +1164,7 @@ public UIComponentAPI addCustom(UIComponentAPI comp, float vGap) {
     prev = comp;
     height += (comp).getHeight() + vGap;
     return comp;
-    }
+}
 ```
 </details>
 
@@ -1345,7 +1346,7 @@ Object addRowWithGlow(Object ... data);
 
 The table, once all the rows are inserted, can be added to the tooltip using `addTable`, where the `andMore` parameter appends the " ... and {{ andMore }} more" text to the end of the table as a row and the `pad` parameter specifies the gap between the previous element and the table.
 
-The `makeTableItemsClickable` method assigns to each row the `buttonListener`, which can be set using the `setActionListenerDelegate` method. As such, the `buttonListener` must be set before calling this method. The first parameter "`data`" of the `actionPerformed` method is of type `TableRowClickData`, should the event originate from a `UITable` row. `TableRowClickData` contains two public fields: `rowId` and `table`.
+The `makeTableItemsClickable` method assigns to each row the `buttonListener`, which can be set using the `setActionListenerDelegate` method. As such, the `buttonListener` must be set before calling this method. The first parameter `data` of the `actionPerformed` method is of type `TableRowClickData`, should the event originate from a `UITable` row. `TableRowClickData` contains two public fields: `rowId` and `table`.
 
 Modifiable values, stored using a `MutableStat`, are usually displayed using a `ModGrid`, or simply `Grid` (the class name is obfuscated), within a tooltip. `TooltipMakerAPI` can have at most one grid being worked on, stored by the `currGrid` field.
 
