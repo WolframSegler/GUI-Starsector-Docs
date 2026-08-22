@@ -1427,6 +1427,7 @@ The skills of a `PersonAPI` can be displayed using `addSkillPanel` or `addSkillP
 ## **Other Interfaces (Roadmap)**
 
 The following sections are planned for future updates to this resource. They are built on the same fundamentals covered here and are not required reading for basic UI work.
+- `SpriteAPI` – Coming soon.
 - `InputEventAPI` – Coming soon.
 - `DialogPanelAPI` – Coming soon.
 - `ScrollPanelAPI` – Coming soon.
@@ -2015,6 +2016,165 @@ public class FactionDetailPanel extends CustomPanel implements Consumer<FactionS
     @Override public void renderBelow(float alpha) {}
     @Override public void render(float alpha) {}
     @Override public void advance(float delta) {}
+    @Override public void processInput(List<InputEventAPI> events) {}
+}
+```
+</details>
+
+<br><br>
+
+## **The Dynamic Panel**
+
+Most data displayed by a UI comes from the state of the game itself. Before getting displayed, this data might need to be re-organized into a data structure suitable for display. Further, separating the data collection/organization from UI code is good practice to avoid spaghetti. The following example displays the name of the current star system and a table of factions present inside the system alongside their colony count and relation to the player.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionSpecAPI;
+import com.fs.starfarer.api.campaign.LocationAPI;
+import com.fs.starfarer.api.campaign.RepLevel;
+import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.ui.Alignment;
+import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.util.Misc;
+
+public class SystemStatusPanel extends CustomPanel {
+    private static final float UPDATE_INTERVAL = 2f;
+
+    private String currentSystemName = "";
+    private float timeSinceLastUpdate = 0f;
+
+    public SystemStatusPanel(float width, float height) {
+        super(width, height);
+        buildUI();
+    }
+
+    @Override
+    public void advance(float delta) {
+        timeSinceLastUpdate += delta;
+
+        final String newName = getCurrentSystemName();
+        if (!newName.equals(currentSystemName) || timeSinceLastUpdate >= UPDATE_INTERVAL) {
+            currentSystemName = newName;
+            timeSinceLastUpdate = 0f;
+            buildUI();
+        }
+    }
+
+    private void buildUI() {
+        /** This time the clear children call is critical to avoid multiple tooltips. */
+        clearChildren();
+
+        final float width = pos().getWidth();
+        final float height = pos().getHeight();
+
+        /** No scrolling needed. */
+        final TooltipMakerAPI content = getTooltip(width, height, false);
+
+        content.setTitleOrbitronVeryLarge();
+        content.addTitle("System: " + currentSystemName, Misc.getBasePlayerColor())
+            .setAlignment(Alignment.MID); /** I want the title to be centered. */
+
+        /** Data getters are good practice to keep UI code separate from logic code. */
+        final List<FactionEntry> entries = getFactionsInSystem();
+
+        if (entries.isEmpty()) {
+            content.addPara("No factions present in this system.", 5f).getPosition().inMid();
+        } else {
+            content.beginTable(
+                Misc.getBasePlayerColor(),
+                Misc.getDarkPlayerColor(),
+                Misc.getBrightPlayerColor(),
+                20f,
+                "Faction", 120f,
+                "Colonies", 60f,
+                "Relation", 80f
+            );
+
+            for (FactionEntry entry : entries) {
+                final Color factionColor = entry.faction.getBaseUIColor();
+                
+                final Color relationColor;
+                if (entry.repLevel.isAtWorst(RepLevel.FAVORABLE)) {
+                    relationColor = Misc.getPositiveHighlightColor();
+                } else if (entry.repLevel.isAtWorst(RepLevel.SUSPICIOUS)) {
+                    relationColor = Misc.getGrayColor();
+                } else {
+                    relationColor = Misc.getNegativeHighlightColor();
+                }
+                
+                content.addRow(
+                    /** The faction color is used for the faction name. */
+                    factionColor, entry.faction.getDisplayName(),
+                    /** Bright yellow color. */
+                    Misc.getHighlightColor(), entry.colonyCount,
+                    relationColor, entry.repLevel.getDisplayName()
+                );
+            }
+
+            /** The "x more" String is left empty, as all the factions are displayed. */
+            content.addTable("", 0, 5f);
+        }
+
+        /** Notice the add(TooltipMakerAPI a) usage, which differs from add(UIComponentAPI a). */
+        add(content);
+    }
+
+    private String getCurrentSystemName() {
+        final LocationAPI location = Global.getSector().getCurrentLocation();
+        return location != null ? location.getName() : "Unknown";
+    }
+
+    /** Not necessary to understand the UI code. */
+    private List<FactionEntry> getFactionsInSystem() {
+        final List<FactionEntry> result = new ArrayList<>();
+        final LocationAPI system = Global.getSector().getCurrentLocation();
+        if (system == null) return result;
+
+        final Map<String, Integer> colonyCounts = new java.util.HashMap<>();
+        for (MarketAPI market : Global.getSector().getEconomy().getMarketsCopy()) {
+            if (market.getStarSystem() == system && market.isPlanetConditionMarketOnly()) {
+                final String factionId = market.getFactionId();
+                colonyCounts.put(factionId, colonyCounts.getOrDefault(factionId, 0) + 1);
+            }
+        }
+
+        for (Map.Entry<String, Integer> entry : colonyCounts.entrySet()) {
+            final String factionId = entry.getKey();
+            final int colonies = entry.getValue();
+
+            final FactionSpecAPI faction = Global.getSettings().getFactionSpec(factionId);
+            if (faction == null || !faction.isShowInIntelTab()) continue;
+
+            final float rep = Global.getSector().getPlayerFleet().getFaction().getRelationship(factionId);
+            final RepLevel relation = RepLevel.getLevelFor(rep);
+
+            result.add(new FactionEntry(
+                faction, colonies, relation
+            ));
+        }
+
+        result.sort((a, b) -> a.faction().getDisplayName().compareToIgnoreCase(b.faction().getDisplayName()));
+        return result;
+    }
+
+    /** Data holder for UI. */
+    private record FactionEntry(
+        FactionSpecAPI faction,
+        int colonyCount,
+        RepLevel repLevel
+    ) {}
+
+    @Override public void renderBelow(float alpha) {}
+    @Override public void render(float alpha) {}
     @Override public void processInput(List<InputEventAPI> events) {}
 }
 ```
