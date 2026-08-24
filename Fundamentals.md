@@ -809,6 +809,208 @@ A list of fonts `LabelAPI` accepts can be found under `com.fs.starfarer.api.ui.F
 
 <br><br>
 
+## **SpriteAPI**
+
+The intended way to draw **textures** in Starsector is by using a `SpriteAPI`, which is a thin wrapper around a texture, containing information such as its `width`, `height`, `rotation`, `color`, `alpha` and blend values. The internal `texture` field stores `textureHandle` and `textureIndex`, which is the identity of the texture. The most common way to get a sprite is through the `getSprite` methods found inside `SettingsAPI`. Sprites must be loaded, either by including them inside `settings.json` or loading them at runtime using `loadTexture` found inside `SettingsAPI`. Internally, all textures are loaded using `com.fs.graphics.TextureLoader`.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+public class Sprite implements Cloneable, DoNotObfuscate {
+    /** The original texture data, which does not get modified, used as the source of truth when creating a Sprite. */
+    protected transient Texture texture;
+    /** The logical width of the sprite, which is equal to the logical width of the texture when first created. */
+    protected float width;
+    /** Same as above. */
+    protected float height;
+    /** Offsets the texture when rendering. Zero by default. */
+    protected float texX = 0.0f;
+    /** Offsets the texture when rendering. Zero by default */
+    protected float texY = 0.0f;
+    /** The actual width of the texture independent of the logical width. Original value from the texture. */
+    protected float texWidth;
+    /** Same as above. */
+    protected float texHeight;
+    /** Rotation of the texture, used when rendering with glRotatef. */
+    protected float angle;
+    /** Used when rendering with glColor4ub. */
+    protected Color color = new Color(255, 255, 255);
+    private float alphaMult = 1.0f;
+    /** Used by renderAtCenterWithCornerColors upper left vertice. */
+    private Color colorUL = new Color(255, 255, 255);
+    /** Upper right. */
+    private Color colorUR = new Color(255, 255, 255);
+    /** Lower left. */
+    private Color colorLL = new Color(255, 255, 255);
+    /** Lower right. */
+    private Color colorLR = new Color(255, 255, 255);
+    /** Used for rotations. */
+    private float centerX = -1.0f;
+    /** Used for rotations. */
+    private float centerY = -1.0f;
+    /** Added to the x coordinate provided to the render method.  */
+    private int offsetX = 0;
+    /** Added to the y coordinate provided to the render method.  */
+    private int offsetY = 0;
+    private int blendSrc = 770;
+    private int blendDest = 771;
+    private boolean texClamp = false;
+    /** Used to restore the texture when serialized. */
+    private String textureId;
+
+    ...
+}
+```
+</details>
+
+This is an irrelevant detail, but `Sprite` does not actually implement `SpriteAPI`, but rather a different class that implements `SpriteAPI` delegates all method calls to an internal `Sprite` field. When creating a new `Sprite`, its values are initialized using the texture.
+```java
+public void setTexture(Texture tex) {
+    this.texture = tex;
+    if (tex != null) {
+        this.width = tex.getWidth();
+        this.height = tex.getHeight();
+        this.texWidth = tex.getTexWidth();
+        this.texHeight = tex.getTexHeight();
+        this.textureId = tex.getId();
+    } else {
+        this.textureId = null;
+    }
+}
+```
+
+There are two convenience methods, `setNormalBlend` and `setAdditiveBlend`, which can be used instead of `setBlendFunc`. There is also a method for getting the average color of a `Texture`. When texture clamping is on (`texClamp`), then the texture stretches the boundary pixels to fill the gap instead of repeating.
+
+Let us look at a `render` pass of `Sprite`. Rendering is done using immediate mode in Starsector, and texture draws are no exception. Firstly, the texture is bound to the GPU, and clamping is activated if `texClamp` is true. Then the settings are saved, coordinates used for translation and color set. Rotation is also applied if `angle` is non-zero. Blending is enabled and a quad with textures are drawn. Lastly the old settings are restored.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+public void render(float x, float y) {
+    if (texture == null) return;
+
+    /** Tells OpenGL to use this texture. Original method obfuscated. */
+    texture.bindTexture();
+    if (texClamp) {
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+    }
+
+    /** Save last settings. */
+    GL11.glPushMatrix();
+    /** Set render color. */
+    GL11.glColor4ub(color.getRed(), color.getGreen(), color.getBlue(), (byte) (color.getAlpha() * alphaMult));
+    /** Offset the render origin by provided x and y coordinates plus offsets. */
+    GL11.glTranslatef(x + offsetX, y + offsetY, 0f);
+    /** Rotate the sprite. */
+    if (centerX != -1f && centerY != -1f) {
+        GL11.glTranslatef(width / 2f, height / 2f, 0f);
+        GL11.glRotatef(angle, 0f, 0f, 1f);
+        GL11.glTranslatef(-centerX, -centerY, 0f);
+    } else {
+        GL11.glTranslatef(width / 2f, height / 2f, 0f);
+        GL11.glRotatef(angle, 0f, 0f, 1f);
+        GL11.glTranslatef(-width / 2f, -height / 2f, 0f);
+    }
+
+    GL11.glEnable(GL11.GL_TEXTURE_2D);
+    GL11.glEnable(GL11.GL_BLEND);
+    GL11.glBlendFunc(blendSrc, blendDest);
+    /** Begin drawing textured quad. */
+    GL11.glBegin(GL11.GL_QUADS);
+
+    /** BL, TL, TR, BR. */
+    GL11.glTexCoord2f(texX, texY);
+    GL11.glVertex2f(0f, 0f);
+    GL11.glTexCoord2f(texX, texY + texHeight);
+    GL11.glVertex2f(0f, height);
+    GL11.glTexCoord2f(texX + texWidth, texY + texHeight);
+    GL11.glVertex2f(width, height);
+    GL11.glTexCoord2f(texX + texWidth, texY);
+    GL11.glVertex2f(width, 0f);
+
+    GL11.glEnd();
+    GL11.glDisable(GL11.GL_BLEND);
+    /** Restore old settings. */
+    GL11.glPopMatrix();
+    if (texClamp) {
+        /** Resets clamping back to repeating. */
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);
+    }
+}
+```
+</details>
+
+A similar method called `renderNoBind` is identical to the `render` method, except it does not bind the texture. This is not used anywhere in vanilla.
+
+`renderWithCorners` draws the texture as a fan of triangles (`GL_TRIANGLE_FAN`) from the center point of the quad to each of the four specified corner coordinates, rendering the texture with arbitrary perspective distortion. Unlike the standard render method, which expects a single position and uses the sprite's internal dimensions, this method accepts four corner positions, making possible isometric or perspective projections.
+
+`renderNoBlendOrRotate` draws the texture without rotation and optionally without blending. It is a performance-optimized variant for contexts where rotation and blending is unnecessary. The standard render method always applies rotation and blending, whereas this method skips those steps for efficiency.
+
+`renderAtCenterWithCornerColors` draws the texture centered at the `<x, y>` position (unlike `render` which places the top-left corner at `<x, y>`) and applies per-vertex colors to each corner, using smooth gradient tints across the texture. It supports rotation around the sprite's center and is commonly used for planet atmospheres, damage overlays, lighting effects etc. The standard render only supports a single uniform tint via setColor().
+
+`renderRegion` draws a specified rectangular subset of the texture rather than the entire image. The subset is defined by normalized coordinates `u` and `v` for the starting corner, and `regionWidth` and `regionHeight` for the size, where 1.0 corresponds to the full texture width or height. This texture region is scaled to the sprite's current render width and height, positioned at `<x, y>`, and rotated around its center if an angle is set. The `bindTex` parameter allows the caller to control texture binding for efficient batch rendering of multiple regions.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+public void renderRegion(float x, float y, float u, float v, float regionWidth, float regionHeight, boolean bindTex) {
+    if (texture == null) return;
+    if (bindTex) texture.bind();
+
+    GL11.glPushMatrix();
+    GL11.glColor4ub(color.getRed(), color.getGreen(), color.getBlue(), (byte) (color.getAlpha() * alphaMult));
+    GL11.glTranslatef(x + offsetX, y + offsetY, 0f);
+
+    if (centerX != -1f && centerY != -1f) {
+        GL11.glTranslatef(width / 2f, height / 2f, 0f);
+        GL11.glRotatef(angle, 0f, 0f, 1f);
+        GL11.glTranslatef(-centerX, -centerY, 0f);
+    } else {
+        GL11.glTranslatef(width / 2f, height / 2f, 0f);
+        GL11.glRotatef(angle, 0f, 0f, 1f);
+        GL11.glTranslatef(-width / 2f, -height / 2f, 0f);
+    }
+
+    GL11.glEnable(GL11.GL_TEXTURE_2D);
+    GL11.glEnable(GL11.GL_BLEND);
+    GL11.glBlendFunc(blendSrc, blendDest);
+
+    final float epsilon = 0.001f;
+
+    final float texX = u * texWidth;
+    final float texY = v * texHeight;
+    final float texW = regionWidth * texWidth;
+    final float texH = regionHeight * texHeight;
+
+    final float renderX = u * width;
+    final float renderY = v * height;
+    final float renderW = regionWidth * width;
+    final float renderH = regionHeight * height;
+
+    GL11.glBegin(GL11.GL_QUADS);
+    GL11.glTexCoord2f(texX + epsilon, texY + epsilon);
+    GL11.glVertex2f(renderX, renderY);
+    GL11.glTexCoord2f(texX + epsilon, texY + texH - epsilon);
+    GL11.glVertex2f(renderX, renderY + renderH);
+    GL11.glTexCoord2f(texX + texW - epsilon, texY + texH - epsilon);
+    GL11.glVertex2f(renderX + renderW, renderY + renderH);
+    GL11.glTexCoord2f(texX + texW - epsilon, texY + epsilon);
+    GL11.glVertex2f(renderX + renderW, renderY);
+    GL11.glEnd();
+
+    GL11.glDisable(GL11.GL_BLEND);
+    GL11.glPopMatrix();
+}
+```
+</details>
+
+<br><br>
+
 ## **ButtonAPI**
 
 Containing four faders for visual effects, a text label, audio feedback, and a renderer for custom corners, `Button`, which extends `UIComponent` and implements `ButtonAPI`, is one of the most commonly used UI widgets after `LabelAPI` and `TooltipMakerAPI`. 
@@ -1427,7 +1629,6 @@ The skills of a `PersonAPI` can be displayed using `addSkillPanel` or `addSkillP
 ## **Other Interfaces (Roadmap)**
 
 The following sections are planned for future updates to this resource. They are built on the same fundamentals covered here and are not required reading for basic UI work.
-- `SpriteAPI` – Coming soon.
 - `InputEventAPI` – Coming soon.
 - `DialogPanelAPI` – Coming soon.
 - `ScrollPanelAPI` – Coming soon.
@@ -2176,6 +2377,204 @@ public class SystemStatusPanel extends CustomPanel {
     @Override public void renderBelow(float alpha) {}
     @Override public void render(float alpha) {}
     @Override public void processInput(List<InputEventAPI> events) {}
+}
+```
+</details>
+
+<br><br>
+
+## **Panels With Tooltips**
+
+This panel displays all colonized planets in a star system. Each planet is rendered using `showPlanetInfo`, and a tooltip is attached to each planet panel showing additional details: faction, size, hazard rating, and the top produced goods. The panel uses a tooltip as its container and demonstrates the `addTooltipToPrevious` pattern for attaching tooltips to UI elements. Data methods are separated from UI code for better organization.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.campaign.FactionSpecAPI;
+import com.fs.starfarer.api.campaign.PlanetAPI;
+import com.fs.starfarer.api.campaign.SectorEntityToken;
+import com.fs.starfarer.api.campaign.StarSystemAPI;
+import com.fs.starfarer.api.campaign.econ.MarketAPI;
+import com.fs.starfarer.api.campaign.econ.MutableCommodityQuantity;
+import com.fs.starfarer.api.campaign.econ.CommoditySpecAPI;
+import com.fs.starfarer.api.campaign.econ.Industry;
+import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.loading.Description;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.PlanetInfoParams;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.TooltipCreator;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.TooltipLocation;
+import com.fs.starfarer.api.ui.Fonts;
+import com.fs.starfarer.api.ui.LabelAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.util.Misc;
+
+public class PlanetListPanel extends CustomPanel {
+    private static final float PLANET_H = 60f;
+    private final float PLANET_W;
+    private final StarSystemAPI mSystem;
+
+    public PlanetListPanel(float width, float height, StarSystemAPI system) {
+        super(width, height);
+        mSystem = system;
+        PLANET_W = width;
+
+        buildUI();
+    }
+
+    private void buildUI() {
+        clearChildren();
+
+        final List<PlanetAPI> planets = getColonizedPlanets(mSystem);
+
+        if (planets.isEmpty()) {
+            final LabelAPI emptyLabel = Global.getSettings().createLabel(
+                "No colonies in system.", Fonts.DEFAULT_SMALL
+            );
+            add(emptyLabel).inMid();
+            return;
+        }
+
+        final float pad = 3f;
+
+        /** Pattern used by Alex to keep the function overloads compact. */
+        final PlanetInfoParams params = new PlanetInfoParams();
+        params.showName = true;
+        params.showHazardRating = false;
+        params.showConditions = false;
+        params.conditionsHeight = 0f;
+
+        final float containerH = (PLANET_H + pad) * planets.size() - pad;
+        final TooltipMakerAPI container = getTooltip(PLANET_W, containerH, false);
+
+        for (PlanetAPI planet : planets) {
+            /** Using pad to create a gap between each planet info panel. */
+            /** showPlanetInfo attaches the panel to the tooltip, which becomes the previous element. */
+            container.showPlanetInfo(planet, PLANET_W, PLANET_H, params, pad);
+
+            /** Without the false parameter the tooltip would be re-created each frame. */
+            container.addTooltipToPrevious(new PlanetTooltip(planet), TooltipLocation.RIGHT, false);
+        }
+
+        add(container).inTL(0f, 0f);
+    }
+
+    private List<PlanetAPI> getColonizedPlanets(StarSystemAPI system) {
+        final List<PlanetAPI> result = new ArrayList<>();
+        if (system == null) return result;
+
+        for (SectorEntityToken token : system.getAllEntities()) {
+            if (token instanceof PlanetAPI planet && planet.getMarket() != null) {
+                result.add(planet);
+            }
+        }
+
+        result.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        return result;
+    }
+
+    private static class PlanetTooltip implements TooltipCreator {
+        private final PlanetAPI planet;
+
+        public PlanetTooltip(PlanetAPI planet) {
+            this.planet = planet;
+        }
+
+        /** Pressing F1 and expanding it. */
+        @Override
+        public boolean isTooltipExpandable(Object tooltipParam) {
+            return false;
+        }
+
+        @Override
+        public float getTooltipWidth(Object tooltipParam) {
+            return 450f;
+        }
+
+        /** More details about the planet and the market associated with it. */
+        @Override
+        public void createTooltip(TooltipMakerAPI tooltip, boolean expanded, Object tooltipParam) {
+            final float pad = 3f;
+
+            final MarketAPI market = planet.getMarket();
+
+            final String factionId = market.getFactionId();
+            /** Why not FactionAPI? Because the spec contains all the info needed. */
+            final FactionSpecAPI faction = Global.getSettings().getFactionSpec(factionId);
+            if (faction != null) {
+                tooltip.addPara("Faction: " + faction.getDisplayName(), faction.getBaseUIColor(), 0f);
+            }
+
+            /** I like to handle highlighted strings using a variable to make referencing them easier. */
+            final String sizeStr = Integer.toString(market.getSize());
+            tooltip.addPara("Size: " + sizeStr, 0f, Misc.getHighlightColor(), sizeStr);
+
+            final float hazard = market.getHazardValue();
+            final Color hazardColor = hazard > 1.5f ? Misc.getNegativeHighlightColor() : Misc.getBasePlayerColor();
+            /** You could leave it as Math.round(hazard * 100) + "%", which implicitly casts the int to a String. */
+            final String hazardStr = Integer.toString(Math.round(hazard * 100)) + "%";
+            tooltip.addPara("Hazard: " + hazardStr, hazardColor, 0f);
+
+            
+
+            final List<Map.Entry<CommoditySpecAPI, Integer>> topGoods = getTopProducedGoods(market);
+            if (!topGoods.isEmpty()) {
+                tooltip.addPara("Production:", pad);
+
+                /** beginGridFlipped(float itemWidth, int cols, Color labelColor, float valueWidth, float valuePad); */
+                tooltip.beginGridFlipped(350f, 1, Misc.getTextColor(), 50f, pad);
+
+                int y = 0;
+                for (Map.Entry<CommoditySpecAPI, Integer> entry : topGoods) {
+                    tooltip.addToGrid(0, y, entry.getKey().getName(), entry.getValue().toString());
+
+                    /** Only the top three. */
+                    y++;
+                    if (y >= 3) break;
+                }
+
+                tooltip.addGrid(pad);
+            }
+
+            final Description desc = Global.getSettings().getDescription(
+                planet.getId(), Description.Type.PLANET
+            );
+            final String description = desc == null ? "No description available." : desc.getText1();
+            /** Text color is gray if there is no description for the planet. */
+            tooltip.addPara(description, pad, desc == null ? Misc.getGrayColor() : Misc.getTextColor());
+        }
+
+        private List<Map.Entry<CommoditySpecAPI, Integer>> getTopProducedGoods(MarketAPI market) {
+            final HashMap<CommoditySpecAPI, Integer> comToProd = new HashMap<>(16);
+
+            for (Industry ind : market.getIndustries()) {
+                if (ind.isHidden() || !ind.isFunctional() || ind.isBuilding() || ind.isUpgrading()) continue;
+
+                for (MutableCommodityQuantity quantity : ind.getAllSupply()) {
+                    final int value = quantity.getQuantity().getModifiedInt();
+                    /** Only keep the highest production. */
+                    comToProd.merge(quantity.getSpec(), value, (a, b) -> Math.max(a, b));
+                }
+            }
+
+            final List<Map.Entry<CommoditySpecAPI, Integer>> sorted = new ArrayList<>(comToProd.entrySet());
+            sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+
+            return sorted;
+        }
+    }
+
+    @Override public void renderBelow(float alpha) {}
+    @Override public void render(float alpha) {}
+    @Override public void processInput(List<InputEventAPI> events) {}
+    @Override public void advance(float delta) {}
 }
 ```
 </details>
