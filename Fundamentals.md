@@ -1624,12 +1624,87 @@ The map of the sector can be created using `createSectorMap` and added using `ad
 
 The skills of a `PersonAPI` can be displayed using `addSkillPanel` or `addSkillPanelOneColumn`.
 
+<br><br>
+
+## **InputEventAPI**
+
+The traversal method `processInput`, which provides every UI element with a list of events from the current traversal, uses `InputEvent` to present each logical input. These `InputEvent`s, hereby events, are created inside `BaseGameState` using an obfuscated event factory class, where the mouse (`org.lwjgl.input.Mouse`) and keyboard (`org.lwjgl.input.Keyboard`) are polled every frame and raw inputs packaged into event objects. The factory tracks key and mouse states across frames and applies them to each generated event. It also detects double-clicks by tracking the time and position of the previous click (`isDoubleClick`). The list of events created is returned to `BaseGameState`, which then routes them to the `processInput` method of the root panel (`screenPanel`).
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+public class InputEvent implements Cloneable, InputEventAPI {
+    /** Mouse or keyboard. */
+    private InputEventClass mEventClass;
+    /** Mouse up, down, move. Key up, down, repeat. Scroll. */
+    private InputEventType mEventType;
+    /** Only ever relevant for mouse events. */
+    private int mEventX;
+    /** Only ever relevant for mouse events. */
+    private int mEventY;
+    /** Only ever relevant for mouse events. */
+    private int mDeltaX;
+    /** Only ever relevant for mouse events. */
+    private int mDeltaY;
+    /** For mouse 0 is LMB, 1 is RMB and 2 is MMB. For key events see org.lwjgl.input.Keyboard.  */
+    private int mEventValue;
+    /** Relevant for certain key events. */
+    private char mEventCharacter;
+    /** Once an event is consumed, many getter throw an exception. Always check if an event is consumed before usage. */
+    private boolean mConsumed = false;
+    private boolean mShiftDown = false;
+    private boolean mCtrlDown = false;
+    private boolean mAltDown = false;
+    /** Unknown. Not used anywhere. Dead field. */
+    private boolean \u00d600000 = false;
+    /** Relevant only for mouse events. */
+    private boolean mDoubleClick = false;
+    private static boolean enforceConsume = true;
+    /** The factory class that generates the events. */
+    private static InputEventFactory eventFactory = StarfarerSettings.getEventFactory();
+    /** Used only by logEvent(), which logs all fields. */
+    private static final Logger logger = Logger.getLogger(InputEvent.class);
+
+    ...
+}
+```
+</details>
+
+Events carry extra state that raw events from `Mouse` and `Keyboard` cannot. Most notably, they can be consumed using `consume`, and this can be controlled with `isConsumed`. The game enforces this state by checking the consumption state of the event before any getter or setter functions. If the event is acted upon while being consumed, it throws a `RuntimeException`.
+
+<details>
+<summary>Code snippet</summary>
+
+```java
+/** Example getter that enforces state */
+public InputEventType getEventType() {
+    enforceConsume();
+    return mEventType;
+}
+
+
+private void enforceConsumed() {
+    if (enforceConsume && isConsumed()) {
+        throw new RuntimeException("Attempt to access data of a consumed InputEvent");
+    }
+}
+```
+</details>
+
+For mouse events, the first course of action after a consumption and `isMouseEvent` check, is a hit test, either by manually polling `getX` and `getY` from both the event and the `PositionAPI` of the UI element, or by calling `PositionAPI.containsEvent`. By storing the past state of the Mouse, `InputEvent` provides further information such as `isMouseUpEvent` and `isMouseDownEvent`, which can be combined with `isLMBEvent` and `isRMBEvent`, or `getEventValue`, where 0 is left mouse, 1 is right mouse and 2 is middle mouse, to get the complete picture. There are also convenience methods that combine these states: `isLMBUpEvent`, `isRMBDownEvent`, `isRMBUpEvent`, and `isLMBDownEvent`.
+
+Sometimes the movement of the mouse is of interest, in the case of hover glows, which react to the mouse being inside its position. The position of the mouse is usually polled with mouse move events (`isMouseMoveEvent`). The scroll input of the mouse is mostly used by the scroll panel (`isMouseScrollEvent`), where `getEventValue` returns the scroll **speed** and its **sign** the scroll direction. It should be noted that a scroll event is separate from a Middle Mouse Button (**MMB**) click. Double clicks can also be detected if there is ever a need for one (`isDoubleClick`), but it is never used in vanilla. 
+
+To see if an event is a key event, its `InputEventClass` can be checked with `getEventClass` or `isKeyboardEvent`. To access the value of a key event, `getEventValue` is most commonly used, in combination with the `Keyboard.getKeyName`, as a constant integer value is given to each key by `org.lwjgl.input.Keyboard`. The previous states of each key is stored to determine whether the key is up, down, or still being pressed down, available through `isRepeat`, `isKeyUpEvent`, and `isKeyDownEvent`, as the Keyboard class by lwjgl only tells the app whether the key is being pressed this frame. For labels or other visuals, the character of the key can also be retrieved using `getEventChar`, which only works for certain keys representable with a single `char`.
+
+The modifier keys, **Alt**, **Ctrl** and **Shift**, are present for every event with `isAltDown`, `isCtrlDown` and `isShiftDown`. The lack of any modifier keys is also controlled with `isUnmodified`, or whether if the current event is that of a modifier key (`isModifierKey`).
+
 
 
 ## **Other Interfaces (Roadmap)**
 
 The following sections are planned for future updates to this resource. They are built on the same fundamentals covered here and are not required reading for basic UI work.
-- `InputEventAPI` – Coming soon.
 - `DialogPanelAPI` – Coming soon.
 - `ScrollPanelAPI` – Coming soon.
 - `TextFieldAPI` – Coming soon.
