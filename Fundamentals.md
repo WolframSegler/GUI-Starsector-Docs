@@ -1702,13 +1702,6 @@ The modifier keys, **Alt**, **Ctrl** and **Shift**, are present for every event 
 
 
 
-## **Other Interfaces (Roadmap)**
-
-The following sections are planned for future updates to this resource. They are built on the same fundamentals covered here and are not required reading for basic UI work.
-- `DialogPanelAPI` – Coming soon.
-- `ScrollPanelAPI` – Coming soon.
-- `TextFieldAPI` – Coming soon.
-
 <br><br>
 
 # **Working with the GUI**
@@ -1735,9 +1728,9 @@ public abstract class CustomPanel implements CustomUIPanelPlugin {
     private static final Object positionSetParentMethod;
 
     static {
-        final UIPanelAPI panelIns = Global.getSettings().createCustom(0f, 0f, null);
-        final Class<?> panelClazz = panelIns.getClass();
-        final Class<?> posClazz = panelIns.getPosition().getClass();
+        final UIPanelAPI panel = Global.getSettings().createCustom(0f, 0f, null);
+        final Class<?> panelClazz = panel.getClass();
+        final Class<?> posClazz = panel.getPosition().getClass();
 
         clearChildrenMethod = RolfLectionUtil.getMethod(
             "clearChildren", panelClazz);
@@ -2653,3 +2646,28 @@ public class PlanetListPanel extends CustomPanel {
 }
 ```
 </details>
+
+<br><br>
+
+## Performance Considerations
+
+While this guide does not cover UI design, performance must be considered. Paying attention to performance demonstrates respect for oneself and for players who will play the mod. Starsector may be a simple game with **2D graphics**, and yet, it is quite easy to bottleneck low-end computers with bad UI code. The rendering is done on the **CPU**, after all. The following will go over performance sensitive matters that I came across.
+
+- `TooltipMakerAPI` is the costliest thing there is when it comes to performance. Its internals fields and complex logic make its memory and runtime cost undesirable. Not to mention how it internally uses other `StandardTooltipV2Expandable`s to do some of its work. Ideally, only use this when creating an actual floating tooltip, and try to use `SettingsAPI` for labels, text fields, checkboxes and custom panels. Unfortunately many UI elements present inside `TooltipMakerAPI` simply have no equivalent inside `SettingsAPI`, but I will keep bothering Alex about this.
+- Using `TooltipMakerAPI` for a single UI element is also bad practice. I have seen code where a tooltip was created for a single label or checkbox. This should be avoided, either by using `SettingsAPI` wherever possible or creating a static `TooltipMakerAPI` and using it as a factory for UI elements, then detaching these elements from the tooltip and adding them to their intended parent. This avoids wasting memory and creating redundant UI elements.
+- Re-creating UI elements each frame can be a bad idea depending on what the re-building code does. Try lazy-updating with a dirty flag wherever applicable instead of re-building the UI every frame.
+- Displaying all elements of a list at once can be expensive. Try to limit the number of elements displayed in scrollable lists. More than 300 is usually overkill. Consider pages to partition the list instead.
+- Reflection is quite expensive, yet needed to work with internals. Try to cache method fields as much as possible and avoid running reflection-containing code every frame wherever possible.
+- Starsector uses immediate mode rendering (`glBegin`/`glEnd`), where each block is an individual draw call. Try to batch rendering when working with a list of items and similar.
+- Avoid setting `recreateEveryFrame` to `true` on tooltips unless the content must update continuously. The default is `true`, which is almost always undesirable.
+- When working with labels, prefer changing the label text instead of creating a new one.
+- For data that changes slowly, poll in `advance` with an interval rather than every frame. This reduces unnecessary rebuilds and **CPU** usage.
+
+<br><br>
+
+## **Other Interfaces (Roadmap)**
+
+The following sections are planned for future updates to this resource. They are built on the same fundamentals covered here and are not required reading for basic UI work.
+- `DialogPanelAPI` – Coming soon.
+- `ScrollPanelAPI` – Coming soon.
+- `TextFieldAPI` – Coming soon.
